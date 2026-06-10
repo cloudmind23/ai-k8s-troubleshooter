@@ -6,6 +6,16 @@ RootLens takes your raw `kubectl` output — logs, events, pod descriptions — 
 
 No more grepping through walls of logs at 2am.
 
+## Why RootLens?
+
+Most AI tools either throw your logs at an LLM raw (no security) or are enterprise black boxes (expensive, opaque). RootLens hits the sweet spot:
+
+- **Security-first** — secrets, API keys, JWTs, and AWS credentials are redacted *before* anything leaves your machine
+- **SRE-structured output** — not a generic summary; tells you what broke, how bad, what to run, how to fix it, and how to prevent it
+- **Pipeline-ready** — clean JSON API plugs straight into PagerDuty, Slack, GitHub Actions, or any CI/CD workflow
+- **Full K8s failure surface** — tuned for real-world cluster failures, from CrashLoopBackOff to RBAC errors to DNS issues
+- **Production-grade** — Dockerized, tested, documented, and deployable; not a script or a notebook
+
 ## Features
 
 - **AI-powered root-cause analysis** — Claude analyzes `kubectl logs`, `describe pod`, and `get events` output
