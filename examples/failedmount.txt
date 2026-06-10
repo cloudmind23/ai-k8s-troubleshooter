@@ -1,0 +1,26 @@
+Events:
+  Warning  FailedMount  2m  kubelet  MountVolume.SetUp failed for volume "config-volume" : configmap "app-config" not found
+  Warning  FailedMount  2m  kubelet  MountVolume.SetUp failed for volume "tls-secret" : secret "app-tls-cert" not found
+  Warning  FailedMount  60s kubelet  Unable to attach or mount volumes: unmounted volumes=[config-volume tls-secret], unattached volumes=[config-volume tls-secret]: timed out waiting for the condition
+
+Name:         web-server-deployment-6d8f4c9b7-lp2wx
+Namespace:    production
+
+Containers:
+  web-server:
+    State:      Waiting
+      Reason:   ContainerCreating
+    Ready:      False
+    Mounts:
+      /etc/app/config from config-volume (ro)
+      /etc/ssl/certs from tls-secret (ro)
+
+Volumes:
+  config-volume:
+    Type:      ConfigMap
+    Name:      app-config
+    Optional:  false
+  tls-secret:
+    Type:        Secret
+    SecretName:  app-tls-cert
+    Optional:    false

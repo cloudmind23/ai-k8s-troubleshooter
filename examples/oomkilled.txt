@@ -1,0 +1,30 @@
+Events:
+  Warning  OOMKilling  5m    kernel   Out of memory: Killed process 1234 (java) total-vm:2097152kB, anon-rss:1048576kB, file-rss:4096kB, shmem-rss:0kB, UID:1000 pgtables:2048kB oom_score_adj:998
+  Warning  BackOff     4m    kubelet  Back-off restarting failed container worker in pod worker-7c9f4d6b5-nz8qr_production
+
+Name:         worker-7c9f4d6b5-nz8qr
+Namespace:    production
+
+Containers:
+  worker:
+    Image:          myrepo/worker:latest
+    Limits:
+      memory:  512Mi
+    Requests:
+      memory:  256Mi
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       OOMKilled
+      Exit Code:    137
+      Started:      Tue, 10 Jun 2026 08:45:00 +0000
+      Finished:     Tue, 10 Jun 2026 08:46:23 +0000
+    Ready:          False
+    Restart Count:  5
+
+Application log:
+[INFO]  Heap size: 256MB max
+[INFO]  Loading dataset into memory...
+[INFO]  Dataset size: 480MB
+[ERROR] java.lang.OutOfMemoryError: Java heap space
+        at java.util.Arrays.copyOf(Arrays.java:3210)

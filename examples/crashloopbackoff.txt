@@ -1,0 +1,31 @@
+Error from server: container "api-server" in pod "api-server-7d4b9c8f6-xk2p9" is not running: back-off 5m0s restarting failed container=api-server pod=api-server-7d4b9c8f6-xk2p9_production(a1b2c3d4-e5f6-7890-abcd-ef1234567890)
+
+panic: runtime error: index out of range [3] with length 3
+
+goroutine 1 [running]:
+main.processRequest(0xc0001a4000, 0x1c)
+	/app/main.go:42 +0x1a8
+main.main()
+	/app/main.go:78 +0x9c
+exit status 2
+
+Events:
+  Warning  BackOff    2m    kubelet  Back-off restarting failed container api-server in pod api-server-7d4b9c8f6-xk2p9_production
+  Normal   Pulled     6m    kubelet  Successfully pulled image "myrepo/api-server:v1.2.3" in 3.14s
+  Normal   Created    6m    kubelet  Created container api-server
+  Normal   Started    6m    kubelet  Started container api-server
+  Warning  BackOff    4m    kubelet  Back-off restarting failed container api-server in pod api-server-7d4b9c8f6-xk2p9_production
+
+Containers:
+  api-server:
+    Container ID:   containerd://abc123def456
+    Image:          myrepo/api-server:v1.2.3
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    2
+      Started:      Tue, 10 Jun 2026 09:12:00 +0000
+      Finished:     Tue, 10 Jun 2026 09:12:01 +0000
+    Ready:          False
+    Restart Count:  8

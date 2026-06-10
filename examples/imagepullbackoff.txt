@@ -1,0 +1,20 @@
+Events:
+  Warning  Failed     3m    kubelet  Failed to pull image "private.registry.io/myapp:v2.0.0": rpc error: code = Unknown desc = failed to pull and unpack image "private.registry.io/myapp:v2.0.0:latest": failed to resolve reference "private.registry.io/myapp:v2.0.0": unexpected status code 401 Unauthorized
+  Warning  Failed     3m    kubelet  Error: ErrImagePull
+  Normal   BackOff    2m    kubelet  Back-off pulling image "private.registry.io/myapp:v2.0.0"
+  Warning  Failed     2m    kubelet  Error: ImagePullBackOff
+
+Name:         myapp-deployment-5f9d8c7b6-mxp4q
+Namespace:    staging
+Status:       Pending
+
+Containers:
+  myapp:
+    Image:          private.registry.io/myapp:v2.0.0
+    State:          Waiting
+      Reason:       ImagePullBackOff
+    Ready:          False
+    Restart Count:  0
+
+  imagePullSecrets:
+    Name: regcred

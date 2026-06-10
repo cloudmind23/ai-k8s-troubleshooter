@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI K8s Troubleshooter</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ── Reset & tokens ─────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --border:    #30363d;
+    --text:      #e6edf3;
+    --muted:     #8b949e;
+    --accent:    #58a6ff;
+    --critical:  #f85149;
+    --high:      #f0883e;
+    --medium:    #e3b341;
+    --low:       #3fb950;
+    --unknown:   #8b949e;
+    --radius:    8px;
+    --mono:      "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── Layout ──────────────────────────────────────────── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  header svg { flex-shrink: 0; }
+  header h1 { font-size: 1rem; font-weight: 600; letter-spacing: .02em; }
+  header .tag {
+    margin-left: auto;
+    font-size: .7rem;
+    background: #1f3c59;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 2px 10px;
+  }
+
+  .main { display: grid; grid-template-columns: 1fr 400px; gap: 0; min-height: calc(100vh - 56px); }
+
+  /* Left column */
+  .left { padding: 24px; display: flex; flex-direction: column; gap: 20px; border-right: 1px solid var(--border); }
+
+  /* Right panel */
+  .right { padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+
+  /* ── Shared card ─────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .card-title {
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* ── Metric row ──────────────────────────────────────── */
+  .metrics-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .metric-value { font-size: 1.75rem; font-weight: 700; line-height: 1; }
+  .metric-label { font-size: .7rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .06em; }
+  .c-critical { color: var(--critical); }
+  .c-high     { color: var(--high); }
+  .c-medium   { color: var(--medium); }
+  .c-low      { color: var(--low); }
+  .c-total    { color: var(--accent); }
+
+  /* ── Input tabs ──────────────────────────────────────── */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  .tab {
+    padding: 8px 14px;
+    font-size: .82rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    transition: color .15s, border-color .15s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: .78rem;
+    line-height: 1.5;
+    padding: 10px 12px;
+    resize: vertical;
+    min-height: 160px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  /* ── Examples quick-load ─────────────────────────────── */
+  .examples-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .example-btn {
+    font-size: .75rem;
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--muted);
+    transition: all .15s;
+  }
+  .example-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Analyze button ──────────────────────────────────── */
+  .btn-analyze {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #0d1117;
+    font-size: .875rem;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px 24px;
+    cursor: pointer;
+    transition: opacity .15s;
+    align-self: flex-start;
+  }
+  .btn-analyze:hover { opacity: .85; }
+  .btn-analyze:disabled { opacity: .4; cursor: not-allowed; }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,0,0,.3);
+    border-top-color: #0d1117;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    display: none;
+  }
+  .btn-analyze.loading .spinner { display: block; }
+  .btn-analyze.loading .btn-text { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Result card ──────────────────────────────────────── */
+  .result-card { animation: fadeIn .3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .severity-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 12px;
+  }
+  .badge-critical { background: rgba(248,81,73,.15);  color: var(--critical); border: 1px solid var(--critical); }
+  .badge-high     { background: rgba(240,136,62,.15); color: var(--high);     border: 1px solid var(--high); }
+  .badge-medium   { background: rgba(227,179,65,.15); color: var(--medium);   border: 1px solid var(--medium); }
+  .badge-low      { background: rgba(63,185,80,.15);  color: var(--low);      border: 1px solid var(--low); }
+  .badge-unknown  { background: rgba(139,148,158,.15);color: var(--unknown);  border: 1px solid var(--unknown); }
+
+  .result-section { margin-bottom: 14px; }
+  .result-section h4 { font-size: .75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .result-section p, .result-section li { font-size: .85rem; line-height: 1.6; color: var(--text); }
+  .result-section ul, .result-section ol { padding-left: 18px; }
+  .result-section li { margin-bottom: 4px; }
+
+  .cmd-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    font-family: var(--mono);
+    font-size: .78rem;
+    color: #7ee787;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cmd-block .copy-btn {
+    margin-left: auto;
+    cursor: pointer;
+    color: var(--muted);
+    background: none;
+    border: none;
+    font-size: .7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background .15s;
+  }
+  .cmd-block .copy-btn:hover { background: var(--border); color: var(--text); }
+
+  /* ── Empty state ─────────────────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    font-size: .85rem;
+  }
+  .empty-state svg { opacity: .3; margin-bottom: 12px; }
+
+  /* ── History table ───────────────────────────────────── */
+  .history-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+  .history-table th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: .68rem;
+  }
+  .history-table td { padding: 7px 8px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: middle; }
+  .history-table tr:last-child td { border-bottom: none; }
+  .history-table tr:hover td { background: rgba(255,255,255,.02); }
+  .sev-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+
+  /* ── Chart canvas ────────────────────────────────────── */
+  .chart-wrap { position: relative; height: 160px; }
+
+  /* ── Error toast ─────────────────────────────────────── */
+  #toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--critical);
+    color: white;
+    padding: 10px 18px;
+    border-radius: var(--radius);
+    font-size: .82rem;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .25s, transform .25s;
+    pointer-events: none;
+    z-index: 999;
+    max-width: 360px;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .right { border-top: 1px solid var(--border); }
+    .metrics-row { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────── -->
+<header>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <h1>AI Kubernetes Troubleshooter</h1>
+  <span class="tag">DevSecOps · LLM-powered</span>
+</header>
+
+<!-- ── Main ────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- Left: input + results -->
+  <div class="left">
+
+    <!-- Metrics row -->
+    <div class="metrics-row">
+      <div class="metric-card">
+        <div class="metric-value c-total" id="m-total">0</div>
+        <div class="metric-label">Total</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value c-critical" id="m-critical">0</div>
+        <div class="metric-label">Critical</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value c-high" id="m-high">0</div>
+        <div class="metric-label">High</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value c-medium" id="m-medium">0</div>
+        <div class="metric-label">Medium</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value c-low" id="m-low">0</div>
+        <div class="metric-label">Low</div>
+      </div>
+    </div>
+
+    <!-- Input card -->
+    <div class="card">
+      <div class="card-title">Paste Kubernetes Diagnostics</div>
+      <div class="tabs">
+        <button class="tab active" data-tab="logs">kubectl logs</button>
+        <button class="tab" data-tab="describe">describe pod</button>
+        <button class="tab" data-tab="events">get events</button>
+        <button class="tab" data-tab="yaml">YAML manifest</button>
+      </div>
+      <div class="tab-panel active" id="panel-logs">
+        <textarea id="in-logs" placeholder="Paste output of: kubectl logs <pod-name> -n <namespace>"></textarea>
+      </div>
+      <div class="tab-panel" id="panel-describe">
+        <textarea id="in-describe" placeholder="Paste output of: kubectl describe pod <pod-name> -n <namespace>"></textarea>
+      </div>
+      <div class="tab-panel" id="panel-events">
+        <textarea id="in-events" placeholder="Paste output of: kubectl get events -n <namespace> --sort-by=.lastTimestamp"></textarea>
+      </div>
+      <div class="tab-panel" id="panel-yaml">
+        <textarea id="in-yaml" placeholder="Paste Kubernetes YAML manifest (Deployment, StatefulSet, etc.)"></textarea>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div class="card-title" style="margin-bottom:8px;">Load example incident</div>
+        <div class="examples-row">
+          <button class="example-btn" data-example="crashloopbackoff">CrashLoopBackOff</button>
+          <button class="example-btn" data-example="imagepullbackoff">ImagePullBackOff</button>
+          <button class="example-btn" data-example="oomkilled">OOMKilled</button>
+          <button class="example-btn" data-example="pending-pod">Pending Pod</button>
+          <button class="example-btn" data-example="failedmount">FailedMount</button>
+          <button class="example-btn" data-example="oomkilled">Resource Exhaustion</button>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; display:flex; align-items:center; gap:12px;">
+        <button class="btn-analyze" id="analyze-btn" onclick="runAnalysis()">
+          <div class="spinner"></div>
+          <span class="btn-text">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-2px;margin-right:4px;">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            Analyze
+          </span>
+        </button>
+        <button onclick="clearAll()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:var(--radius);padding:9px 16px;cursor:pointer;font-size:.82rem;">Clear</button>
+      </div>
+    </div>
+
+    <!-- Result area -->
+    <div id="result-area">
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <p>Paste diagnostic data and click <strong>Analyze</strong> to get AI-powered root-cause analysis.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right: chart + history -->
+  <div class="right">
+
+    <!-- Severity donut chart -->
+    <div class="card">
+      <div class="card-title">Severity Distribution</div>
+      <div class="chart-wrap">
+        <canvas id="severityChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Analysis history -->
+    <div class="card" style="flex:1;">
+      <div class="card-title" style="display:flex;justify-content:space-between;">
+        <span>Analysis History</span>
+        <span id="history-count" style="color:var(--accent);font-variant-numeric:tabular-nums;">0 records</span>
+      </div>
+      <div id="history-body">
+        <div class="empty-state" style="padding:24px 0;">No analyses yet</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────
+const API = '';  // same origin
+
+// ── Tab switching ──────────────────────────────────────
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Example loader ─────────────────────────────────────
+document.querySelectorAll('.example-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const name = btn.dataset.example;
+    try {
+      const r = await fetch(`${API}/examples/${name}`);
+      if (!r.ok) throw new Error('Example not found');
+      const data = await r.json();
+      // Load into logs tab
+      document.getElementById('in-logs').value = data.content;
+      // Switch to logs tab
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelector('[data-tab="logs"]').classList.add('active');
+      document.getElementById('panel-logs').classList.add('active');
+    } catch (e) {
+      showToast('Could not load example: ' + e.message);
+    }
+  });
+});
+
+// ── Chart setup ────────────────────────────────────────
+const chartCtx = document.getElementById('severityChart').getContext('2d');
+const severityChart = new Chart(chartCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['Critical', 'High', 'Medium', 'Low', 'Unknown'],
+    datasets: [{
+      data: [0, 0, 0, 0, 0],
+      backgroundColor: ['#f85149', '#f0883e', '#e3b341', '#3fb950', '#8b949e'],
+      borderColor: '#161b22',
+      borderWidth: 3,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '65%',
+    plugins: {
+      legend: {
+        position: 'right',
+        labels: {
+          color: '#8b949e',
+          font: { size: 11 },
+          boxWidth: 10,
+          padding: 12,
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${ctx.parsed}`
+        }
+      }
+    }
+  }
+});
+
+// ── Metrics refresh ────────────────────────────────────
+async function refreshMetrics() {
+  try {
+    const r = await fetch(`${API}/metrics`);
+    const data = await r.json();
+    document.getElementById('m-total').textContent    = data.total_analyses;
+    document.getElementById('m-critical').textContent = data.by_severity.Critical  || 0;
+    document.getElementById('m-high').textContent     = data.by_severity.High      || 0;
+    document.getElementById('m-medium').textContent   = data.by_severity.Medium    || 0;
+    document.getElementById('m-low').textContent      = data.by_severity.Low       || 0;
+
+    severityChart.data.datasets[0].data = [
+      data.by_severity.Critical || 0,
+      data.by_severity.High     || 0,
+      data.by_severity.Medium   || 0,
+      data.by_severity.Low      || 0,
+      data.by_severity.Unknown  || 0,
+    ];
+    severityChart.update();
+  } catch (_) {}
+}
+
+// ── History refresh ────────────────────────────────────
+async function refreshHistory() {
+  try {
+    const r = await fetch(`${API}/history?limit=30`);
+    const records = await r.json();
+    const body = document.getElementById('history-body');
+    document.getElementById('history-count').textContent = records.length + ' records';
+
+    if (!records.length) {
+      body.innerHTML = '<div class="empty-state" style="padding:24px 0;">No analyses yet</div>';
+      return;
+    }
+
+    const rows = records.map(rec => {
+      const sev  = (rec.severity || 'Unknown').toLowerCase();
+      const time = new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dotColor = { critical:'#f85149', high:'#f0883e', medium:'#e3b341', low:'#3fb950' }[sev] || '#8b949e';
+      return `<tr>
+        <td style="color:#8b949e;font-size:.7rem;white-space:nowrap;">${time}</td>
+        <td><span class="sev-dot" style="background:${dotColor}"></span>${rec.severity}</td>
+        <td style="color:#8b949e;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(rec.root_cause)}">${esc(rec.root_cause)}</td>
+      </tr>`;
+    }).join('');
+
+    body.innerHTML = `<table class="history-table">
+      <thead><tr><th>Time</th><th>Sev</th><th>Summary</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } catch (_) {}
+}
+
+// ── Main analysis ──────────────────────────────────────
+async function runAnalysis() {
+  const logs     = document.getElementById('in-logs').value.trim();
+  const describe = document.getElementById('in-describe').value.trim();
+  const events   = document.getElementById('in-events').value.trim();
+  const yaml     = document.getElementById('in-yaml').value.trim();
+
+  if (!logs && !describe && !events && !yaml) {
+    showToast('Paste at least one diagnostic input before analyzing.');
+    return;
+  }
+
+  const btn = document.getElementById('analyze-btn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(`${API}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ logs, describe, events, yaml_manifest: yaml }),
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || r.statusText);
+    }
+
+    const data = await r.json();
+    renderResult(data);
+    await refreshMetrics();
+    await refreshHistory();
+  } catch (e) {
+    showToast('Analysis failed: ' + e.message);
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+// ── Render result ──────────────────────────────────────
+function renderResult(d) {
+  const sev = (d.severity || 'Unknown').toLowerCase();
+  const ts  = new Date(d.timestamp).toLocaleString();
+
+  const commands = (d.commands || []).map(cmd =>
+    `<div class="cmd-block">
+      <span>$ ${esc(cmd)}</span>
+      <button class="copy-btn" onclick="copyText(this,'${esc(cmd).replace(/'/g,"\\'")}')">copy</button>
+    </div>`
+  ).join('') || '<p style="color:var(--muted)">No commands provided.</p>';
+
+  const remediation = (d.remediation || []).map((step, i) =>
+    `<li>${esc(step)}</li>`
+  ).join('') || '<li style="color:var(--muted)">No steps provided.</li>';
+
+  document.getElementById('result-area').innerHTML = `
+    <div class="card result-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="card-title" style="margin-bottom:0;">Analysis Result</div>
+        <span style="font-size:.7rem;color:var(--muted)">${ts}</span>
+      </div>
+
+      <span class="severity-badge badge-${sev}">${d.severity || 'Unknown'}</span>
+
+      <div class="result-section">
+        <h4>Root Cause</h4>
+        <p>${esc(d.root_cause)}</p>
+      </div>
+
+      <div class="result-section">
+        <h4>Evidence</h4>
+        <p style="font-family:var(--mono);font-size:.76rem;white-space:pre-wrap;color:#7ee787;">${esc(d.evidence)}</p>
+      </div>
+
+      <div class="result-section">
+        <h4>Recommended Commands</h4>
+        ${commands}
+      </div>
+
+      <div class="result-section">
+        <h4>Remediation Steps</h4>
+        <ol>${remediation}</ol>
+      </div>
+
+      <div class="result-section">
+        <h4>Prevention</h4>
+        <p>${esc(d.prevention)}</p>
+      </div>
+    </div>`;
+}
+
+// ── Clear ──────────────────────────────────────────────
+function clearAll() {
+  ['in-logs','in-describe','in-events','in-yaml'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('result-area').innerHTML = `
+    <div class="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+      <p>Paste diagnostic data and click <strong>Analyze</strong> to get AI-powered root-cause analysis.</p>
+    </div>`;
+}
+
+// ── Copy util ──────────────────────────────────────────
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+// ── Toast ──────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+// ── HTML escape ────────────────────────────────────────
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// ── Keyboard shortcut: Ctrl/Cmd+Enter ─────────────────
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runAnalysis();
+});
+
+// ── Poll metrics & history every 15s ──────────────────
+refreshMetrics();
+refreshHistory();
+setInterval(() => { refreshMetrics(); refreshHistory(); }, 15000);
+</script>
+</body>
+</html>

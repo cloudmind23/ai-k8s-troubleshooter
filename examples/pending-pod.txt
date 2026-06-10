@@ -1,0 +1,29 @@
+Events:
+  Warning  FailedScheduling  90s   default-scheduler  0/3 nodes are available: 3 Insufficient cpu. preemption: 0/3 nodes are available: 3 No preemption victims found for incoming pod.
+
+Name:         ml-training-job-0
+Namespace:    ml-pipeline
+Status:       Pending
+
+Containers:
+  trainer:
+    Image:   myrepo/ml-trainer:v3.1
+    Requests:
+      cpu:    8
+      memory: 16Gi
+    Limits:
+      cpu:    8
+      memory: 16Gi
+
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+
+Conditions:
+  Type           Status
+  PodScheduled   False
+
+Cluster node capacity:
+  node-1:  cpu=4, allocatable_cpu=3.8
+  node-2:  cpu=4, allocatable_cpu=3.9
+  node-3:  cpu=4, allocatable_cpu=3.7
