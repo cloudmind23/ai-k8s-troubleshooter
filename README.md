@@ -1,6 +1,10 @@
-# AI Kubernetes Troubleshooter
+# RootLens 🔍
 
-> AI Kubernetes Troubleshooter is an LLM-powered DevSecOps tool that analyzes Kubernetes logs, events, and pod configurations to generate root-cause analysis, remediation guidance, and operational recommendations for cloud-native environments.
+> AI-powered Kubernetes incident analyzer for DevOps, DevSecOps, and SRE teams.
+
+RootLens takes your raw `kubectl` output — logs, events, pod descriptions — and uses Claude to instantly diagnose what went wrong, how bad it is, and exactly how to fix it.
+
+No more grepping through walls of logs at 2am.
 
 ## Features
 
@@ -32,7 +36,7 @@
 
 ```bash
 git clone <repo>
-cd ai-k8s-troubleshooter
+cd rootlens
 cp .env.example .env
 # Edit .env and set ANTHROPIC_API_KEY
 ```
@@ -48,8 +52,8 @@ python3 app.py
 ### 3. Run with Docker
 
 ```bash
-docker build -t ai-k8s-troubleshooter .
-docker run -p 8000:8000 --env-file .env ai-k8s-troubleshooter
+docker build -t rootlens .
+docker run -p 8000:8000 --env-file .env rootlens
 ```
 
 ## API
@@ -108,7 +112,7 @@ All inputs are sanitized before reaching the LLM:
 ## Project Structure
 
 ```
-ai-k8s-troubleshooter/
+rootlens/
 ├── app.py                    # FastAPI app + routes + metrics/history store
 ├── services/
 │   ├── sanitizer.py          # Secret redaction
