@@ -1,4 +1,4 @@
-# RootLens 🔍
+# Root Lens 🔍
 
 > AI-powered Kubernetes incident analyzer for DevOps, DevSecOps, and SRE teams.
 
